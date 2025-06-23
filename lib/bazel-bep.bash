@@ -106,6 +106,10 @@ process_bep() {
       continue
     fi
 
+    if echo "$line" | jq -e '.aborted.reason == "SKIPPED"' > /dev/null 2>&1; then
+      continue
+    fi
+
     # Try to parse as JSON, but continue on errors
     if ! echo "$line" | jq -e '.' > /dev/null 2>&1; then
       echo "Warning: Skipping invalid JSON line: ${line:0:50}..."
@@ -282,11 +286,6 @@ process_bep() {
 
 "
   # Add command used if running in Buildkite
-  if [ -n "${BUILDKITE_COMMAND:-}" ]; then
-    summary+="**🏃 Command:** \`${BUILDKITE_COMMAND}\`
-
-"
-  fi
 
   if [ $total_build_time -gt 0 ]; then
     summary+="**⏱️ Duration:** ${total_build_time}s | "
@@ -397,7 +396,10 @@ $failure_details</details>
 
 
 "
-
+  if [ "$fail_count" -eq 0 ]; then
+    echo "No failures found in BEP — skipping annotation."
+    return 0
+  fi
   # Create the annotation
   create_annotation "$style" "$summary"
 

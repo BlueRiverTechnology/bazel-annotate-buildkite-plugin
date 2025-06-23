@@ -67,6 +67,8 @@ create_annotation() {
 
 # Process the BEP file to extract useful information
 process_bep() {
+
+  declare -A seen_tests
   local BEP_FILE="$1"
 
   # Ensure the file exists
@@ -195,6 +197,10 @@ process_bep() {
     if echo "$line" | jq -e '.id.testResult != null' > /dev/null 2>&1; then
       local test_label
       test_label=$(echo "$line" | jq -r '.id.testResult.label // "unknown"')
+      if [[ -n "${seen_tests[$test_label]+_}" ]]; then
+        continue
+      fi
+      seen_tests["$test_label"]=1
       local test_status
       test_status=$(echo "$line" | jq -r '.testResult.status // "UNKNOWN"')
       local test_time

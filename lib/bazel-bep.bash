@@ -173,9 +173,9 @@ if ((${#successful_targets[@]})); then
 fi
 
 
-  [[ -n "$failure_details" ]] && summary+="\n<details open><summary><strong>❌ Failure Details</strong> ($fail_count failures)</summary>\n\n$failure_details</details>\n"
-  summary+="\n\n---\n\n"
+[[ -n "$failure_details" ]] && summary+="\n<details open><summary><strong>❌ Failure Details</strong> ($fail_count failures)</summary>\n\n$failure_details</details>\n"
+summary+="\n\n---\n\n"
 
-  [[ $fail_count -eq 0 ]] && echo "No failures found in BEP — skipping annotation." && return 0
-  create_annotation "$style" "$summary"
+[[ $fail_count -eq 0 ]] && echo "No failures found in BEP — skipping annotation." && return 0
+create_annotation "$style" "$summary"
 }

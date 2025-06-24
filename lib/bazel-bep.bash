@@ -61,10 +61,9 @@ process_bep() {
     )
   ' build_events.json > filtered_bep.json
 
-  if [[ "$BEP_FILE" != *.filtered.json && -f "$BEP_FILE" ]]; then
-    jq -c 'select(...)' "$BEP_FILE" > "${BEP_FILE%.json}.filtered.json"
-    BEP_FILE="${BEP_FILE%.json}.filtered.json"
-  fi
+
+  BEP_FILE="${BEP_FILE%.json}.filtered.json"
+
   local success_count=0 fail_count=0 skip_count=0 cached_count=0
   local build_start_time=0 build_end_time=0
   local -A seen_tests

@@ -101,8 +101,25 @@ process_bep() {
 
   echo "Processing BEP file: $BEP_FILE"
 
+  if ! jq -e '
+    .id.testResult? and
+    (.testResult.status != "PASSED" and .testResult.status != "FLAKY")
+  ' "$BEP_FILE" >/dev/null; then
+    echo "All tests passed or were skipped — skipping annotation."
+    exit 0
+  fi
   # Parse the JSON stream
-  while read -r line || [[ -n "$line" ]]; do
+  jq -c '
+    select(
+      (.id.testResult? != null) or
+      (.id.targetCompleted? != null) or
+      (.id.configured? != null) or
+      (.id.targetSkipped? != null) or
+      (.id.buildStarted? != null) or
+      (.id.buildFinished? != null)
+    )
+    | select(.aborted?.reason != "SKIPPED")
+  ' "$BEP_FILE" | while read -r line; do
     # Skip empty lines
     if [ -z "$line" ]; then
       continue
@@ -407,6 +424,7 @@ $failure_details</details>
     return 0
   fi
   # Create the annotation
+
   create_annotation "$style" "$summary"
 
   # Always return success after processing

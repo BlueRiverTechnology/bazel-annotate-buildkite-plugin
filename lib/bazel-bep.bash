@@ -108,7 +108,7 @@ process_bep() {
       continue
     fi
 
-    if echo "$line" | jq -e '.aborted.reason == "SKIPPED"' > /dev/null 2>&1; then
+    if [[ "$line" == *'"aborted"'* && "$line" == *'"SKIPPED"'* ]]; then
       continue
     fi
 

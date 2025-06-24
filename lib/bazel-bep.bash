@@ -50,6 +50,16 @@ process_bep() {
   local BEP_FILE="$1"
   [[ ! -f "$BEP_FILE" || ! -s "$BEP_FILE" ]] && echo "⚠ Skipping annotation: BEP file missing or empty: $BEP_FILE" && return 0
 
+  jq -c '
+    select(
+      (.id.testResult? != null) or
+      (.id.targetCompleted? != null) or
+      (.id.configured? != null) or
+      (.id.buildStarted? != null) or
+      (.id.buildFinished? != null) or
+      (.id.targetSkipped? != null)
+    )
+  ' "$BEP_FILE" > "${BEP_FILE}.tmp" && mv "${BEP_FILE}.tmp" "$BEP_FILE"
   local success_count=0 fail_count=0 skip_count=0 cached_count=0
   local build_start_time=0 build_end_time=0
   local -A seen_tests

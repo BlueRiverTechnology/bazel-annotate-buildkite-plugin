@@ -59,7 +59,12 @@ process_bep() {
       (.id.buildFinished? != null) or
       (.id.targetSkipped? != null)
     )
-  ' "$BEP_FILE" > "${BEP_FILE}.tmp" && mv "${BEP_FILE}.tmp" "$BEP_FILE"
+  ' build_events.json > filtered_bep.json
+
+  if [[ "$BEP_FILE" != *.filtered.json && -f "$BEP_FILE" ]]; then
+    jq -c 'select(...)' "$BEP_FILE" > "${BEP_FILE%.json}.filtered.json"
+    BEP_FILE="${BEP_FILE%.json}.filtered.json"
+  fi
   local success_count=0 fail_count=0 skip_count=0 cached_count=0
   local build_start_time=0 build_end_time=0
   local -A seen_tests

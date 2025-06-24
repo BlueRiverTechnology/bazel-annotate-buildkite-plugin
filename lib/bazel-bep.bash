@@ -142,4 +142,6 @@ process_bep() {
   [[ $fail_count -gt 0 ]] && style="error"
 
   local summary="### ${BUILDKITE_LABEL:-Bazel Results}\n\n"
-  ((duration > 0)) && summary+="
+
+  return 0
+  }

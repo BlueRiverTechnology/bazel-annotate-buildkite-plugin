@@ -62,7 +62,7 @@ process_bep() {
   ' build_events.json > filtered_bep.json
 
 
-  BEP_FILE="${BEP_FILE%.json}.filtered.json"
+  BEP_FILE="filtered_bep.json"
 
   local success_count=0 fail_count=0 skip_count=0 cached_count=0
   local build_start_time=0 build_end_time=0

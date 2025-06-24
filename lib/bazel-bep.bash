@@ -71,10 +71,10 @@ process_bep() {
   declare -A seen_tests
   local BEP_FILE="$1"
 
-  # Ensure the file exists
-  if [[ ! -f "$BEP_FILE" ]]; then
-    echo "Error: BEP file does not exist: $BEP_FILE"
-    return 1
+# Ensure the BEP file exists and is non-empty
+  if [[ ! -f "$BEP_FILE" || ! -s "$BEP_FILE" ]]; then
+    echo "⚠ Skipping annotation: BEP file missing or empty: $BEP_FILE"
+    return 0
   fi
 
   # Count of target statuses

@@ -139,24 +139,25 @@ process_bep() {
   ((skip_count > 0)) && summary+=" | ⏭️ $skip_count skipped"
   summary+="\n\n"
 
-  if ((${#slowest_tests[@]})); then
-    summary+="<details><summary><strong>⏱️ Test Durations</strong> (${#slowest_tests[@]} tests)</summary>\n\n"
-    for i in $(seq 0 $((${#slowest_tests[@]} - 1))); do
-      summary+="- \\`${slowest_tests[$i]}\\`: ${slowest_times[$i]}s\n"
-      [[ $i -ge 9 ]] && {
-        [[ ${#slowest_tests[@]} -gt 10 ]] && summary+="- _...and $((${#slowest_tests[@]} - 10)) more_\n"
-        break
-      }
-    done
-    summary+="</details>\n"
-  fi
+if ((${#slowest_tests[@]})); then
+  summary+="<details><summary><strong>⏱️ Test Durations</strong> (${#slowest_tests[@]} tests)</summary>\n\n"
+  for i in $(seq 0 $((${#slowest_tests[@]} - 1))); do
+    summary+="- \`${slowest_tests[$i]}\`: ${slowest_times[$i]}s\n"
+    [[ $i -ge 9 ]] && {
+      [[ ${#slowest_tests[@]} -gt 10 ]] && summary+="- _...and $((${#slowest_tests[@]} - 10)) more_\n"
+      break
+    }
+  done
+  summary+="</details>\n"
+fi
 
-  if ((${#successful_targets[@]})); then
-    mapfile -t successful_targets < <(printf "%s\n" "${successful_targets[@]}" | sort)
-    summary+="\n<details><summary><strong>✅ Successfully Built</strong> (${#successful_targets[@]} targets)</summary>\n\n"
-    for t in "${successful_targets[@]}"; do summary+="- \\`$t\\`\n"; done
-    summary+="</details>\n"
-  fi
+if ((${#successful_targets[@]})); then
+  mapfile -t successful_targets < <(printf "%s\n" "${successful_targets[@]}" | sort)
+  summary+="\n<details><summary><strong>✅ Successfully Built</strong> (${#successful_targets[@]} targets)</summary>\n\n"
+  for t in "${successful_targets[@]}"; do summary+="- \`$t\`\n"; done
+  summary+="</details>\n"
+fi
+
 
   [[ -n "$failure_details" ]] && summary+="\n<details open><summary><strong>❌ Failure Details</strong> ($fail_count failures)</summary>\n\n$failure_details</details>\n"
   summary+="\n\n---\n\n"

@@ -176,7 +176,7 @@ process_bep() {
       done
 
       # After loop, build the Markdown summary
-      local summary="### Bazel Results
+      local summary="
 
 "
       if (( build_end > 0 && build_start > 0 )); then
@@ -198,7 +198,7 @@ process_bep() {
         for i in "${!slowest_tests[@]}"; do
           summary+="- \`${slowest_tests[i]}\`: ${slowest_times[i]}s
 "
-          (( i == 9 )) && { summary+="- _...and $(( ${#slowest_tests[@]}-10)) more_\n"; break; }
+          (( i == 9 )) && { summary+="- _...and $(( ${#slowest_tests[@]}-10)) more_"; break; }
         done
         summary+="</details>
 

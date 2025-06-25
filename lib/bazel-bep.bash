@@ -44,8 +44,7 @@ create_annotation() {
     fi
     # Append the annotation under the same context
     printf '%s' "$content" \
-      | buildkite-agent annotate --style "$style"
-
+      | buildkite-agent annotate --style "$style" --context "$job_name"
     # Mark header created so subsequent jobs know
     if ! buildkite-agent meta-data exists "bazel-annotate-header-created" >/dev/null; then
       buildkite-agent meta-data set "bazel-annotate-header-created" "true" >/dev/null || true
@@ -184,7 +183,7 @@ process_bep() {
       done
 
       # After loop, build the Markdown summary
-      local summary=""
+      local summary=" "
       if (( build_end > 0 && build_start > 0 )); then
         summary+="**⏱️ Duration:** $(( (build_end - build_start)/1000 ))s | "
       fi

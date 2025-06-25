@@ -35,12 +35,13 @@ create_annotation() {
   if [ -n "${BUILDKITE:-}" ] && command -v buildkite-agent &>/dev/null; then
     if [ "$first" != "true" ]; then
       content=$(printf "%s" "$content" | sed '1,3d')
-      content=$'### 🧩 '"${job_name}"$'\n\n'"${content}"
+      content="### $job
 
 $content"
     fi
     printf "%s" "$content" \
       | buildkite-agent annotate --style "$style" --append
+
     # mark header done
     if ! buildkite-agent meta-data exists "bazel-annotate-header-created" &>/dev/null; then
       buildkite-agent meta-data set "bazel-annotate-header-created" "true" || true

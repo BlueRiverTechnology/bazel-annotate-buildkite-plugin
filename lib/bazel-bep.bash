@@ -107,11 +107,6 @@ process_bep() {
         ),
         status: .testResult.status,
         time: (.testResult.testAttemptDurationMillis // 1000),
-        log: (
-          .testResult.testActionOutput[]?
-          | select(.name == "test.log")
-          | .uri
-        ),
         start: .started.startTimeMillis,
         end: .finished.finishTimeMillis
       }
@@ -149,7 +144,6 @@ process_bep() {
           testResult)
             local status=$(jq -r '.status' <<<"$evt")
             local dur_ms=$(jq -r '.time'   <<<"$evt")
-            local loguri=$(jq -r '.log // empty' <<<"$evt")
 
             # dedupe
             [[ -n "${seen_tests[$label]:-}" ]] && continue
@@ -173,9 +167,6 @@ process_bep() {
               [[ "$status" == "TIMEOUT" ]] && emoji="⏱️"
 
               failure_details+="### $emoji $label failed ($status in ${dur_s}s)
-\`\`\`diff
-- Log: ${loguri:-Not available}
-\`\`\`
 
 "
             fi

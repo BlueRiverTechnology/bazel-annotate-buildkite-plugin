@@ -33,33 +33,29 @@ create_annotation() {
   local job_name="${BUILDKITE_LABEL:-Unknown Job}"
   local is_first_job="${BUILDKITE_PLUGIN_BAZEL_ANNOTATE_IS_FIRST_JOB:-true}"
 
-  if [ -n "${BUILDKITE:-}" ] && command -v buildkite-agent &>/dev/null; then
-    # On every run *except* the first, drop the old header lines
+  if [ -n "${BUILDKITE:-}" ] && command -v buildkite-agent >/dev/null 2>&1; then
+    # On every run *except* the first, strip out the old header (lines 1–3)
     if [ "$is_first_job" != "true" ]; then
       content=$(printf '%s' "$content" | sed '1,3d')
     fi
 
-    # ALWAYS prepend a fresh header
-    read -r -d '' content <<EOF
-### 🧩 $job_name
+    # Prepend a real Markdown header (with actual blank line) using ANSI-C quoting
+    content=$'### 🧩 '"${job_name}"$'\n\n'"${content}"
 
-$content
-EOF
-
-    # Append it under the same context
+    # Append the annotation under the same context
     printf '%s' "$content" \
       | buildkite-agent annotate --style "$style" --context "$context_id" --append
 
-    # Mark that the header has been created once
-    if ! buildkite-agent meta-data exists "bazel-annotate-header-created" 2>/dev/null; then
-      buildkite-agent meta-data set "bazel-annotate-header-created" "true" &>/dev/null || true
+    # Mark header created so subsequent jobs know
+    if ! buildkite-agent meta-data exists "bazel-annotate-header-created" >/dev/null; then
+      buildkite-agent meta-data set "bazel-annotate-header-created" "true" >/dev/null || true
     fi
   else
-    echo "Not running in Buildkite; would annotate ($style):"
+    # Local fallback
+    echo "Not running in Buildkite. Would create annotation ($style):"
     printf '%s\n' "$content"
   fi
 }
-
 #-------------------------------------------------------------------------------
 # Main processing function
 #-------------------------------------------------------------------------------

@@ -82,7 +82,8 @@ process_bep() {
         .id.targetCompleted? or
         .id.configured? or
         .id.targetSkipped? or
-        .id.testResult?
+        .id.testResult? or
+        .id.testSummary?
       )
     )
     | {
@@ -105,14 +106,14 @@ process_bep() {
           and (.completed.actionExecuted == null)
         ),
         status: .testResult.status,
-        time: (.testResult.testActionDurationMillis // 0),
+        time: (.testResult.testAttemptDurationMillis // 1000),
         log: (
           .testResult.testActionOutput[]?
           | select(.name == "test.log")
           | .uri
         ),
-        start: .buildStarted.startTimeMillis,
-        end: .buildFinished.finishTimeMillis
+        start: .started.startTimeMillis,
+        end: .finished.finishTimeMillis
       }
   ' "$BEP" \
   | {
@@ -239,4 +240,3 @@ $failure_details</details>"
       create_annotation "error" "$summary"
     }
 }
-

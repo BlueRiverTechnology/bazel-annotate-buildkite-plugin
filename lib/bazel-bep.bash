@@ -37,11 +37,11 @@ create_annotation() {
     # On every run *except* the first, strip out the old header (lines 1–3)
     if [ "$is_first_job" != "true" ]; then
       content=$(printf '%s' "$content" | sed '1,3d')
+      content=$'\n### 🧩 '"${job_name}"$'\n\n'"${content}"
+    else
+      # First job: no leading blank line
+      content=$'### 🧩 '"${job_name}"$'\n\n'"${content}"
     fi
-
-    # Prepend a real Markdown header (with actual blank line) using ANSI-C quoting
-    content=$'### 🧩 '"${job_name}"$'\n\n'"${content}"
-
     # Append the annotation under the same context
     printf '%s' "$content" \
       | buildkite-agent annotate --style "$style" --context "$context_id" --append

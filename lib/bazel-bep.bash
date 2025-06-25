@@ -106,7 +106,7 @@ process_bep() {
           and (.completed.actionExecuted == null)
         ),
         status: .testResult.status,
-        time: (.testResult.testActionDurationMillis // 0),
+        time: (.testResult.testActionDurationMillis // 1000),
         log: (
           .testResult.testActionOutput[]?
           | select(.name == "test.log")
@@ -184,9 +184,7 @@ process_bep() {
       done
 
       # After loop, build the Markdown summary
-      local summary="
-
-"
+      local summary=""
       if (( build_end > 0 && build_start > 0 )); then
         summary+="**⏱️ Duration:** $(( (build_end - build_start)/1000 ))s | "
       fi
@@ -195,7 +193,6 @@ process_bep() {
       (( fail_count   > 0 )) && summary+=" | ❌ $fail_count failed"
       (( skip_count   > 0 )) && summary+=" | ⏭️ $skip_count skipped"
       summary+="
-
 "
 
       # slowest tests

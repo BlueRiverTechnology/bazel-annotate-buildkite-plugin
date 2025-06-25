@@ -107,6 +107,11 @@ process_bep() {
         ),
         status: .testResult.status,
         time: (.testResult.testAttemptDurationMillis // 1000),
+        log: (
+          .testResult.testActionOutput[]?
+          | select(.name == "test.log")
+          | .uri
+        ),
         start: .started.startTimeMillis,
         end: .finished.finishTimeMillis
       }
@@ -167,6 +172,9 @@ process_bep() {
               [[ "$status" == "TIMEOUT" ]] && emoji="⏱️"
 
               failure_details+="### $emoji $label failed ($status in ${dur_s}s)
+\`\`\`diff
+- Log: Not Available at this Time
+\`\`\`
 
 "
             fi

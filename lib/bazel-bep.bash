@@ -31,25 +31,37 @@ create_annotation() {
   local job_name="${BUILDKITE_LABEL:-Unknown Job}"
   local is_first_job="${BUILDKITE_PLUGIN_BAZEL_ANNOTATE_IS_FIRST_JOB:-true}"
 
-  if [ -n "${BUILDKITE:-}" ] && command -v buildkite-agent &>/dev/null; then
+  # Check if we're running in Buildkite
+  if [ -n "${BUILDKITE:-}" ] && command -v buildkite-agent >/dev/null 2>&1; then
+    # Modify content based on whether this is the first job
     if [ "$is_first_job" != "true" ]; then
-      # remove old header
-      content=$(printf "%s" "$content" | sed '1,3d')
-      # prepend new header with real newlines
-      content=$'### 🧩 '"${job_name}"$'\n\n'"${content}"
+      # If not the first job, add a job section instead of the main header
+      echo "Appending to existing Buildkite annotation..."
+
+      # Replace the main header with a job-specific header or remove it
+      content=$(echo "$content" | sed '1,3d') # Remove the first 3 lines (header + blank line)
+
+      # Add job-specific section header
+      content="### 🧩 ${job_name}\n\n${content}"
+    else
+      echo "Creating initial Buildkite annotation with header..."
     fi
 
-    # expand backslashes and annotate
-    printf "%b" "$content" \
-      | buildkite-agent annotate --style "$style" --context "$context_id" --append
+    # Use printf to ensure newlines are properly interpreted
+    printf "%s" "$content" | buildkite-agent annotate --style "$style" --context "$context_id" --append
 
-    # mark header as created
-    if ! buildkite-agent meta-data exists "bazel-annotate-header-created" &>/dev/null; then
+    # Signal to future jobs that they're not the first
+    if buildkite-agent meta-data exists "bazel-annotate-header-created" 2>/dev/null; then
+      echo "Header already marked as created in metadata"
+    else
+      echo "Setting metadata to indicate header has been created"
       buildkite-agent meta-data set "bazel-annotate-header-created" "true" || true
     fi
   else
-    echo "Not running in Buildkite; would annotate ($style):"
-    printf "%b\n" "$content"
+    # We're not in Buildkite, just display the content on stdout
+    echo "Not running in Buildkite. Would create annotation with style '$style':"
+    # Use printf to properly display the markdown
+    printf "%s" "$content"
   fi
 }
 

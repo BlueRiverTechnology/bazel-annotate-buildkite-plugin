@@ -105,7 +105,7 @@ process_bep() {
           and (.completed.actionExecuted == null)
         ),
         status: .testResult.status,
-        time: (.testResult.testActionDurationMillis // 1000),
+        time: (.testResult.testActionDurationMillis),
         log: (
           .testResult.testActionOutput[]?
           | select(.name == "test.log")
@@ -155,7 +155,7 @@ process_bep() {
             seen_tests["$label"]=1
 
             # record slowest
-            local dur_s=$(bc <<<"scale=2; $dur_ms/1000")
+            local dur_s=$(bc <<<"scale=2; $dur_ms")
             slowest_tests+=("$label")
             slowest_times+=("$dur_s")
 
@@ -185,7 +185,7 @@ process_bep() {
       # After loop, build the Markdown summary
       local summary=" "
       if (( build_end > 0 && build_start > 0 )); then
-        summary+="**⏱️ Duration:** $(( (build_end - build_start)/1000 ))s | "
+        summary+="**⏱️ Duration:** $(( (build_end - build_start) ))s | "
       fi
       summary+="**Status:** ✅ $success_count"
       (( cached_count > 0 )) && summary+=" | 🔄 $cached_count cached"

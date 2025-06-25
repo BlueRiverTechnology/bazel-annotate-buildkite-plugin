@@ -27,28 +27,36 @@ get_random_quote() {
 
 # Function to create a Buildkite annotation from the given Markdown content
 create_annotation() {
-  local style="$1"; local content="$2"
-  local context="bazel-bep-results"
-  local job="${BUILDKITE_LABEL:-Bazel Results}"
-  local first="${BUILDKITE_PLUGIN_BAZEL_ANNOTATE_IS_FIRST_JOB:-true}"
+  local style="$1"
+  local content="$2"
+  local context_id="bazel-bep-results"
+  local job_name="${BUILDKITE_LABEL:-Unknown Job}"
+  local is_first_job="${BUILDKITE_PLUGIN_BAZEL_ANNOTATE_IS_FIRST_JOB:-true}"
 
   if [ -n "${BUILDKITE:-}" ] && command -v buildkite-agent &>/dev/null; then
-    if [ "$first" != "true" ]; then
-      content=$(printf "%s" "$content" | sed '1,3d')
-      content="### 🧩 $job
-
-$content"
+    # On every run *except* the first, drop the old header lines
+    if [ "$is_first_job" != "true" ]; then
+      content=$(printf '%s' "$content" | sed '1,3d')
     fi
-    printf "%s" "$content" \
-      | buildkite-agent annotate --style "$style" --context "$context" --append
 
-    # mark header done
-    if ! buildkite-agent meta-data exists "bazel-annotate-header-created" &>/dev/null; then
-      buildkite-agent meta-data set "bazel-annotate-header-created" "true" || true
+    # ALWAYS prepend a fresh header
+    read -r -d '' content <<EOF
+### 🧩 $job_name
+
+$content
+EOF
+
+    # Append it under the same context
+    printf '%s' "$content" \
+      | buildkite-agent annotate --style "$style" --context "$context_id" --append
+
+    # Mark that the header has been created once
+    if ! buildkite-agent meta-data exists "bazel-annotate-header-created" 2>/dev/null; then
+      buildkite-agent meta-data set "bazel-annotate-header-created" "true" &>/dev/null || true
     fi
   else
-    echo "Not running in Buildkite. Would annotate ($style):"
-    printf "%s\n" "$content"
+    echo "Not running in Buildkite; would annotate ($style):"
+    printf '%s\n' "$content"
   fi
 }
 

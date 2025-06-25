@@ -155,7 +155,7 @@ process_bep() {
             seen_tests["$label"]=1
 
             # record slowest
-            local dur_s=$(bc <<<"scale=2; $dur_ms")
+            local dur_s=$(bc <<<"scale=2; $dur_ms/1000")
             slowest_tests+=("$label")
             slowest_times+=("$dur_s")
 

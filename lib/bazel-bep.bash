@@ -19,6 +19,7 @@ get_random_quote() {
     "\"Optimism is an occupational hazard of programming; feedback is the treatment.\" - Kent Beck"
     "\"Simplicity is the soul of efficiency.\" - Austin Freeman"
   )
+
   echo "${quotes[RANDOM % ${#quotes[@]}]}"
 }
 

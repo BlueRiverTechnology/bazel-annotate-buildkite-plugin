@@ -44,7 +44,7 @@ create_annotation() {
     fi
     # Append the annotation under the same context
     printf '%s' "$content" \
-      | buildkite-agent annotate --style "$style" --context "$context_id" --append
+      | buildkite-agent annotate --style "$style"
 
     # Mark header created so subsequent jobs know
     if ! buildkite-agent meta-data exists "bazel-annotate-header-created" >/dev/null; then

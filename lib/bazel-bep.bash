@@ -105,7 +105,7 @@ process_bep() {
           and (.completed.actionExecuted == null)
         ),
         status: .testResult.status,
-        time: (.testResult.testActionDurationMillis),
+        time: (.testResult.testActionDurationMillis // 0),
         log: (
           .testResult.testActionOutput[]?
           | select(.name == "test.log")
@@ -185,7 +185,7 @@ process_bep() {
       # After loop, build the Markdown summary
       local summary=" "
       if (( build_end > 0 && build_start > 0 )); then
-        summary+="**⏱️ Duration:** $(( (build_end - build_start) ))s | "
+        summary+="**⏱️ Duration:** $(( (build_end - build_start) / 1000 ))s | "
       fi
       summary+="**Status:** ✅ $success_count"
       (( cached_count > 0 )) && summary+=" | 🔄 $cached_count cached"

@@ -1,181 +1,242 @@
-#!/bin/bash
-set -euo pipefail
+#!/opt/homebrew/bin/bash
+#set -euo pipefail
 
-# This library processes Bazel Event Protocol output and creates Buildkite annotations
+#-------------------------------------------------------------------------------
+# This library processes Bazel Event Protocol output and creates Buildkite
+# annotations, with line-numbered debug output for each streamed event.
+#-------------------------------------------------------------------------------
 
-# Function to get random quote for annotation footer
+# Function to get a random quote for annotation footer
 get_random_quote() {
   local quotes=(
-    "\"The best error message is the one that never shows up.\" - Thomas Fuchs"
-    "\"First, solve the problem. Then, write the code.\" - John Johnson"
-    "\"Make it work, make it right, make it fast.\" - Kent Beck"
-    "\"Programming isn't about what you know; it's about what you can figure out.\" - Chris Pine"
-    "\"The only way to learn a new programming language is by writing programs in it.\" - Dennis Ritchie"
-    "\"Testing can only prove the presence of bugs, not their absence.\" - Edsger W. Dijkstra"
-    "\"It's not a bug – it's an undocumented feature.\" - Anonymous"
-    "\"Good code is its own best documentation.\" - Steve McConnell"
-    "\"Any fool can write code that a computer can understand. Good programmers write code that humans can understand.\" - Martin Fowler"
-    "\"The sooner you start to code, the longer the program will take.\" - Roy Carlson"
-    "\"Optimism is an occupational hazard of programming; feedback is the treatment.\" - Kent Beck"
-    "\"Simplicity is the soul of efficiency.\" - Austin Freeman"
+    '"The best error message is the one that never shows up." - Thomas Fuchs'
+    '"First, solve the problem. Then, write the code." - John Johnson'
+    '"Make it work, make it right, make it fast." - Kent Beck'
+    '"Programming isn'\''t about what you know; it'\''s about what you can figure out." - Chris Pine'
+    '"The only way to learn a new programming language is by writing programs in it." - Dennis Ritchie'
+    '"Testing can only prove the presence of bugs, not their absence." - Edsger W. Dijkstra'
+    '"It'\''s not a bug – it'\''s an undocumented feature." - Anonymous'
+    '"Good code is its own best documentation." - Steve McConnell'
+    '"Any fool can write code that a computer can understand. Good programmers write code that humans can understand." - Martin Fowler'
+    '"The sooner you start to code, the longer the program will take." - Roy Carlson'
+    '"Optimism is an occupational hazard of programming; feedback is the treatment." - Kent Beck'
+    '"Simplicity is the soul of efficiency." - Austin Freeman'
   )
   echo "${quotes[RANDOM % ${#quotes[@]}]}"
 }
 
-# Function to create a Buildkite annotation with the given style and content
+# Function to create a Buildkite annotation from the given Markdown content
 create_annotation() {
-  local style="$1"
-  local content="$2"
-  local context_id="bazel-bep-results"
-  local job_name="${BUILDKITE_LABEL:-Unknown Job}"
-  local is_first_job="${BUILDKITE_PLUGIN_BAZEL_ANNOTATE_IS_FIRST_JOB:-true}"
+  local style="$1"; local content="$2"
+  local context="bazel-bep-results"
+  local job="${BUILDKITE_LABEL:-Bazel Results}"
+  local first="${BUILDKITE_PLUGIN_BAZEL_ANNOTATE_IS_FIRST_JOB:-true}"
 
-  if [ -n "${BUILDKITE:-}" ] && command -v buildkite-agent >/dev/null 2>&1; then
-    if [ "$is_first_job" != "true" ]; then
-      content=$(echo "$content" | sed '1,3d')
-      content="### 🧩 ${job_name}\n\n${content}"
+  if [ -n "${BUILDKITE:-}" ] && command -v buildkite-agent &>/dev/null; then
+    if [ "$first" != "true" ]; then
+      content=$(printf "%s" "$content" | sed '1,3d')
+      content="### 🧩 $job
+
+$content"
     fi
-    printf "%s" "$content" | buildkite-agent annotate --style "$style" --context "$context_id" --append
-    if ! buildkite-agent meta-data exists "bazel-annotate-header-created" 2>/dev/null; then
+    printf "%s" "$content" \
+      | buildkite-agent annotate --style "$style" --context "$context" --append
+
+    # mark header done
+    if ! buildkite-agent meta-data exists "bazel-annotate-header-created" &>/dev/null; then
       buildkite-agent meta-data set "bazel-annotate-header-created" "true" || true
     fi
   else
-    echo "Not running in Buildkite. Would create annotation with style '$style':"
-    printf "%s" "$content"
+    echo "Not running in Buildkite. Would annotate ($style):"
+    printf "%s\n" "$content"
   fi
 }
 
-# Optimized BEP processor
+#-------------------------------------------------------------------------------
+# Main processing function
+#-------------------------------------------------------------------------------
 process_bep() {
-  local BEP_FILE="$1"
-  [[ ! -f "$BEP_FILE" || ! -s "$BEP_FILE" ]] && echo "⚠ Skipping annotation: BEP file missing or empty: $BEP_FILE" && return 0
+  local BEP="$1"
+  echo "Processing BEP file: $BEP"
 
-  jq -c '
-    select(
-      (.id.testResult? != null) or
-      (.id.targetCompleted? != null) or
-      (.id.configured? != null) or
-      (.id.buildStarted? != null) or
-      (.id.buildFinished? != null) or
-      (.id.targetSkipped? != null)
-    )
-  ' "$BEP_FILE" > filtered_bep.json
+  # Guard: file exists
+  [[ ! -s "$BEP" ]] && { echo "⚠ Skipping: $BEP is missing or empty"; return; }
 
-
-  BEP_FILE="filtered_bep.json"
-
+  # Initialize counters & containers
+  declare -A seen_tests
+  declare -a successful_targets=() slowest_tests=() slowest_times=()
+  local build_start=0 build_end=0
   local success_count=0 fail_count=0 skip_count=0 cached_count=0
-  local build_start_time=0 build_end_time=0
-  local -A seen_tests
-  local -a successful_targets slowest_tests slowest_times
   local failure_details=""
 
-  while IFS= read -r json; do
-    local kind
-    kind=$(jq -r 'keys_unsorted[0]' <<< "$json")
-
-    case "$kind" in
-      id)
-        if jq -e '.buildStarted != null' <<< "$json" >/dev/null; then
-          build_start_time=$(jq -r '.buildStarted.startTimeMillis // 0' <<< "$json")
-        elif jq -e '.buildFinished != null' <<< "$json" >/dev/null; then
-          build_end_time=$(jq -r '.buildFinished.finishTimeMillis // 0' <<< "$json")
-        elif jq -e '.targetSkipped != null' <<< "$json" >/dev/null; then
-          ((skip_count++))
-        elif jq -e '.targetCompleted != null' <<< "$json" >/dev/null; then
-          local label=$(jq -r '.id.targetCompleted.label // "unknown"' <<< "$json")
-          local success=$(jq -r '.completed.success // "false"' <<< "$json")
-          if jq -e '.completed.outputGroup?[]?.fileSets?[]?.id? != null' <<< "$json" >/dev/null 2>&1 && \
-             ! jq -e '.completed.actionExecuted? != null' <<< "$json" >/dev/null 2>&1; then
-            ((cached_count++))
-          fi
-          if [[ "$success" == "true" ]]; then
-            ((success_count++))
-            successful_targets+=("$label")
-          else
-            ((fail_count++))
-            local errors=$(jq -r '.completed.failureDetail.message // "Unknown error"' <<< "$json")
-            failure_details+=$'### ❌ Failed: '"$label"$'\n\n```diff\n- ERROR: '"$errors"$'\n```\n\n'
-            if grep -qE "no such target|no such package|Package is considered deleted" <<< "$errors"; then
-              local detail=$(grep -oE "'[^']*'|Package [^:]*" <<< "$errors" | head -1)
-              failure_details+=$'**🔍 Possible Fix:** '"$detail"$' might be missing, renamed, or deleted.\n\n'
-            fi
-          fi
-        elif jq -e '.configured != null' <<< "$json" >/dev/null; then
-          local label=$(jq -r '.id.configured.targetLabel // "unknown"' <<< "$json")
-          [[ " ${successful_targets[*]} " != *" $label "* ]] && ((success_count++)) && successful_targets+=("$label")
-        elif jq -e '.testResult != null' <<< "$json" >/dev/null; then
-          local test_label=$(jq -r '.id.testResult.label // "unknown"' <<< "$json")
-          [[ -n "${seen_tests[$test_label]+x}" ]] && continue
-          seen_tests["$test_label"]=1
-
-          local test_status=$(jq -r '.testResult.status // "UNKNOWN"' <<< "$json")
-          local test_time=$(jq -r '.testResult.testActionDurationMillis // 0' <<< "$json")
-          ((test_time == 0)) && test_time=1000
-          local secs=$(bc <<<"scale=2; $test_time/1000")
-
-          [[ "$test_status" == "PASSED" ]] && ((success_count++)) && successful_targets+=("$test_label (test)")
-          [[ "$test_status" == "FLAKY" ]] && ((success_count++)) && successful_targets+=("$test_label (⚠️ flaky)")
-          [[ "$test_status" != "PASSED" && "$test_status" != "FLAKY" ]] && ((fail_count++))
-
-          slowest_tests+=("$test_label")
-          slowest_times+=("$secs")
-
-          if [[ "$test_status" != "PASSED" ]]; then
-            local test_errors="No detailed logs available"
-            jq -e '.testResult.testActionOutput? != null' <<< "$json" >/dev/null 2>&1 && \
-              test_errors=$(jq -r '.testResult.testActionOutput[]? | .name + ": " + .uri' <<< "$json")
-            local emoji="❌"
-            [[ "$test_status" == "FLAKY" ]] && emoji="⚠️"
-            [[ "$test_status" == "TIMEOUT" ]] && emoji="⏱️"
-            failure_details+=$'### '"$emoji"$' Failed Test: '"$test_label"$' ('"$test_status"$') in '"${secs}s"$'\n\n```diff\n- '"$test_errors"$'\n```\n\n'
-            if jq -e '.testResult.testActionOutput[]? | select(.name == "test.log")' <<< "$json" >/dev/null 2>&1; then
-              local log_uri=$(jq -r '.testResult.testActionOutput[] | select(.name == "test.log") | .uri' <<< "$json")
-              failure_details+=$'[View Full Test Log]('"$log_uri"$')\n\n'
-            fi
-          fi
-        fi
-        ;;
-    esac
-  done < <(jq -c 'select((.aborted?.reason != "SKIPPED") and (.id != null))' "$BEP_FILE")
-
-  local duration=0
-  ((build_end_time > 0 && build_start_time > 0)) && duration=$(( (build_end_time - build_start_time) / 1000 ))
-
-  local style="info"
-  [[ $fail_count -gt 0 ]] && style="error"
-
-  local summary="### ${BUILDKITE_LABEL:-Bazel Results}\n\n"
-  ((duration > 0)) && summary+="**⏱️ Duration:** ${duration}s | "
-  summary+="**Status:** ✅ $success_count"
-  ((cached_count > 0)) && summary+=" | 🔄 $cached_count cached"
-  ((fail_count > 0)) && summary+=" | ❌ $fail_count failed"
-  ((skip_count > 0)) && summary+=" | ⏭️ $skip_count skipped"
-  summary+="\n\n"
-
-  if ((${#slowest_tests[@]})); then
-    summary+="<details><summary><strong>⏱️ Test Durations</strong> (${#slowest_tests[@]} tests)</summary>\n\n"
-    for i in $(seq 0 $((${#slowest_tests[@]} - 1))); do
-      summary+="- \`${slowest_tests[$i]}\`: ${slowest_times[$i]}s\n"
-      [[ $i -ge 9 ]] && {
-        [[ ${#slowest_tests[@]} -gt 10 ]] && summary+="- _...and $((${#slowest_tests[@]} - 10)) more_\n"
-        break
+  # Stream & tag only the events we need, one JSON-per-line
+  jq -rc '
+    select(
+      (.aborted?.reason != "SKIPPED") and
+      (
+        .id.buildStarted? or
+        .id.buildFinished? or
+        .id.targetCompleted? or
+        .id.configured? or
+        .id.targetSkipped? or
+        .id.testResult?
+      )
+    )
+    | {
+        type: (
+          if .id.buildStarted? then "buildStarted"
+          elif .id.buildFinished? then "buildFinished"
+          elif .id.targetCompleted? then "targetCompleted"
+          elif .id.configured? then "configured"
+          elif .id.targetSkipped? then "skipped"
+          else "testResult" end
+        ),
+        label: (
+          .id.testResult.label // .id.targetCompleted.label //
+          .id.targetSkipped.label // .id.configured.targetLabel // "unknown"
+        ),
+        success: (.completed.success // false),
+        cached: (
+          (.completed.outputGroup? // [])
+          | any(.name == "bazel-out")
+          and (.completed.actionExecuted == null)
+        ),
+        status: .testResult.status,
+        time: (.testResult.testActionDurationMillis // 0),
+        log: (
+          .testResult.testActionOutput[]?
+          | select(.name == "test.log")
+          | .uri
+        ),
+        start: .buildStarted.startTimeMillis,
+        end: .buildFinished.finishTimeMillis
       }
-    done
-    summary+="</details>\n"
-  fi
+  ' "$BEP" \
+  | {
+      while IFS= read -r evt; do
 
-  if ((${#successful_targets[@]})); then
-    mapfile -t successful_targets < <(printf "%s\n" "${successful_targets[@]}" | sort)
-    summary+="\n<details><summary><strong>✅ Successfully Built</strong> (${#successful_targets[@]} targets)</summary>\n\n"
-    for t in "${successful_targets[@]}"; do summary+="- \`$t\`\n"; done
-    summary+="</details>\n"
-  fi
+        type=$(jq -r '.type' <<<"$evt")
+        label=$(jq -r '.label' <<<"$evt")
 
+        case "$type" in
+          buildStarted)
+            build_start=$(jq -r '.start' <<<"$evt") ;;
+          buildFinished)
+            build_end=$(jq -r '.end' <<<"$evt") ;;
+          targetCompleted)
+            local ok=$(jq -r '.success' <<<"$evt")
+            local cached=$(jq -r '.cached' <<<"$evt")
+            if [[ "$ok" == true ]]; then
+              ((success_count++))
+              successful_targets+=("$label")
+              [[ "$cached" == true ]] && ((cached_count++))
+            else
+              ((fail_count++))
+            fi
+            ;;
+          configured)
+            if [[ ! " ${successful_targets[*]} " =~ [[:space:]]${label}[[:space:]] ]]; then
+              ((success_count++))
+              successful_targets+=("$label")
+            fi
+            ;;
+          skipped)
+            ((skip_count++)) ;;
+          testResult)
+            local status=$(jq -r '.status' <<<"$evt")
+            local dur_ms=$(jq -r '.time'   <<<"$evt")
+            local loguri=$(jq -r '.log // empty' <<<"$evt")
 
-  [[ -n "$failure_details" ]] && summary+="\n<details open><summary><strong>❌ Failure Details</strong> ($fail_count failures)</summary>\n\n$failure_details</details>\n"
-  summary+="\n\n---\n\n"
+            # dedupe
+            [[ -n "${seen_tests[$label]:-}" ]] && continue
+            seen_tests["$label"]=1
 
-  [[ $fail_count -eq 0 ]] && echo "No failures found in BEP — skipping annotation." && return 0
-  create_annotation "$style" "$summary"
+            # record slowest
+            local dur_s=$(bc <<<"scale=2; $dur_ms/1000")
+            slowest_tests+=("$label")
+            slowest_times+=("$dur_s")
+
+            if [[ "$status" == "PASSED" || "$status" == "FLAKY" ]]; then
+              ((success_count++))
+              if [[ "$status" == "FLAKY" ]]; then
+                successful_targets+=("$label (⚠️ flaky)")
+              else
+                successful_targets+=("$label (test)")
+              fi
+            else
+              ((fail_count++))
+              emoji="❌"
+              [[ "$status" == "TIMEOUT" ]] && emoji="⏱️"
+
+              failure_details+="### $emoji $label failed ($status in ${dur_s}s)
+\`\`\`diff
+- Log: ${loguri:-Not available}
+\`\`\`
+
+"
+            fi
+            ;;
+        esac
+      done
+
+      # After loop, build the Markdown summary
+      local summary="### Bazel Results
+
+"
+      if (( build_end > 0 && build_start > 0 )); then
+        summary+="**⏱️ Duration:** $(( (build_end - build_start)/1000 ))s | "
+      fi
+      summary+="**Status:** ✅ $success_count"
+      (( cached_count > 0 )) && summary+=" | 🔄 $cached_count cached"
+      (( fail_count   > 0 )) && summary+=" | ❌ $fail_count failed"
+      (( skip_count   > 0 )) && summary+=" | ⏭️ $skip_count skipped"
+      summary+="
+
+"
+
+      # slowest tests
+      if (( ${#slowest_tests[@]} )); then
+        summary+="<details><summary><strong>⏱️ Test Durations</strong> (${#slowest_tests[@]})</summary>
+
+"
+        for i in "${!slowest_tests[@]}"; do
+          summary+="- \`${slowest_tests[i]}\`: ${slowest_times[i]}s
+"
+          (( i == 9 )) && { summary+="- _...and $(( ${#slowest_tests[@]}-10)) more_\n"; break; }
+        done
+        summary+="</details>
+
+"
+      fi
+
+      # successful targets
+      if (( ${#successful_targets[@]} )); then
+        mapfile -t sorted < <(printf '%s\n' "${successful_targets[@]}" | sort)
+        summary+="<details><summary><strong>✅ Successfully Built</strong> (${#sorted[@]})</summary>
+
+"
+        for tgt in "${sorted[@]}"; do
+          summary+="- \`$tgt\`
+"
+        done
+        summary+="</details>
+
+"
+      fi
+
+      # failures
+      if [[ -n "$failure_details" ]]; then
+        summary+="<details open><summary><strong>❌ Failure Details</strong> ($fail_count)</summary>
+
+$failure_details</details>"
+      fi
+
+      # annotate
+      if (( fail_count == 0 )); then
+        echo "No failures — skipping annotation."
+        exit 0
+      fi
+      create_annotation "error" "$summary"
+    }
 }
+

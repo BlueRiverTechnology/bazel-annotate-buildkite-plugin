@@ -1,67 +1,53 @@
-#!/bin/bash
-set -euo pipefail
+#!/opt/homebrew/bin/bash
+#set -euo pipefail
 
-# This library processes Bazel Event Protocol output and creates Buildkite annotations
+#-------------------------------------------------------------------------------
+# This library processes Bazel Event Protocol output and creates Buildkite
+# annotations, with line-numbered debug output for each streamed event.
+#-------------------------------------------------------------------------------
 
-# Function to get random quote for annotation footer
+# Function to get a random quote for annotation footer
 get_random_quote() {
   local quotes=(
-    "\"The best error message is the one that never shows up.\" - Thomas Fuchs"
-    "\"First, solve the problem. Then, write the code.\" - John Johnson"
-    "\"Make it work, make it right, make it fast.\" - Kent Beck"
-    "\"Programming isn't about what you know; it's about what you can figure out.\" - Chris Pine"
-    "\"The only way to learn a new programming language is by writing programs in it.\" - Dennis Ritchie"
-    "\"Testing can only prove the presence of bugs, not their absence.\" - Edsger W. Dijkstra"
-    "\"It's not a bug – it's an undocumented feature.\" - Anonymous"
-    "\"Good code is its own best documentation.\" - Steve McConnell"
-    "\"Any fool can write code that a computer can understand. Good programmers write code that humans can understand.\" - Martin Fowler"
-    "\"The sooner you start to code, the longer the program will take.\" - Roy Carlson"
-    "\"Optimism is an occupational hazard of programming; feedback is the treatment.\" - Kent Beck"
-    "\"Simplicity is the soul of efficiency.\" - Austin Freeman"
+    '"The best error message is the one that never shows up." - Thomas Fuchs'
+    '"First, solve the problem. Then, write the code." - John Johnson'
+    '"Make it work, make it right, make it fast." - Kent Beck'
+    '"Programming isn'\''t about what you know; it'\''s about what you can figure out." - Chris Pine'
+    '"The only way to learn a new programming language is by writing programs in it." - Dennis Ritchie'
+    '"Testing can only prove the presence of bugs, not their absence." - Edsger W. Dijkstra'
+    '"It'\''s not a bug – it'\''s an undocumented feature." - Anonymous'
+    '"Good code is its own best documentation." - Steve McConnell'
+    '"Any fool can write code that a computer can understand. Good programmers write code that humans can understand." - Martin Fowler'
+    '"The sooner you start to code, the longer the program will take." - Roy Carlson'
+    '"Optimism is an occupational hazard of programming; feedback is the treatment." - Kent Beck'
+    '"Simplicity is the soul of efficiency." - Austin Freeman'
   )
-
   echo "${quotes[RANDOM % ${#quotes[@]}]}"
 }
 
-# Function to create a Buildkite annotation with the given style and content
+# Function to create a Buildkite annotation from the given Markdown content
 create_annotation() {
-  local style="$1"
-  local content="$2"
-  local context_id="bazel-bep-results"
-  local job_name="${BUILDKITE_LABEL:-Unknown Job}"
-  local is_first_job="${BUILDKITE_PLUGIN_BAZEL_ANNOTATE_IS_FIRST_JOB:-true}"
+  local style="$1"; local content="$2"
+  local context="bazel-bep-results"
+  local job="${BUILDKITE_LABEL:-Bazel Results}"
+  local first="${BUILDKITE_PLUGIN_BAZEL_ANNOTATE_IS_FIRST_JOB:-true}"
 
-  # Check if we're running in Buildkite
-  if [ -n "${BUILDKITE:-}" ] && command -v buildkite-agent >/dev/null 2>&1; then
-    # Modify content based on whether this is the first job
-    if [ "$is_first_job" != "true" ]; then
-      # If not the first job, add a job section instead of the main header
-      echo "Appending to existing Buildkite annotation..."
+  if [ -n "${BUILDKITE:-}" ] && command -v buildkite-agent &>/dev/null; then
+    if [ "$first" != "true" ]; then
+      content=$(printf "%s" "$content" | sed '1,3d')
+      content=$'### 🧩 '"${job_name}"$'\n\n'"${content}"
 
-      # Replace the main header with a job-specific header or remove it
-      content=$(echo "$content" | sed '1,3d') # Remove the first 3 lines (header + blank line)
-
-      # Add job-specific section header
-      content="### 🧩 ${job_name}\n\n${content}"
-    else
-      echo "Creating initial Buildkite annotation with header..."
+$content"
     fi
-
-    # Use printf to ensure newlines are properly interpreted
-    printf "%s" "$content" | buildkite-agent annotate --style "$style" --context "$context_id" --append
-
-    # Signal to future jobs that they're not the first
-    if buildkite-agent meta-data exists "bazel-annotate-header-created" 2>/dev/null; then
-      echo "Header already marked as created in metadata"
-    else
-      echo "Setting metadata to indicate header has been created"
+    printf "%s" "$content" \
+      | buildkite-agent annotate --style "$style" --append
+    # mark header done
+    if ! buildkite-agent meta-data exists "bazel-annotate-header-created" &>/dev/null; then
       buildkite-agent meta-data set "bazel-annotate-header-created" "true" || true
     fi
   else
-    # We're not in Buildkite, just display the content on stdout
-    echo "Not running in Buildkite. Would create annotation with style '$style':"
-    # Use printf to properly display the markdown
-    printf "%s" "$content"
+    echo "Not running in Buildkite. Would annotate ($style):"
+    printf "%s\n" "$content"
   fi
 }
 

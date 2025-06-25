@@ -34,9 +34,17 @@ create_annotation() {
   local is_first_job="${BUILDKITE_PLUGIN_BAZEL_ANNOTATE_IS_FIRST_JOB:-true}"
 
   if [ -n "${BUILDKITE:-}" ] && command -v buildkite-agent >/dev/null 2>&1; then
-
+    # On every run *except* the first, strip out the old header (lines 1–3)
+    if [ "$is_first_job" != "true" ]; then
+      content=$(printf '%s' "$content" | sed '1,3d')
+      content=$'\n ### '"${job_name}"$'\n\n'"${content}"
+    else
+      # First job: no leading blank line
+      content=$'### 🧩 '"${job_name}"$'\n\n'"${content}"
+    fi
+    # Append the annotation under the same context
     printf '%s' "$content" \
-      | buildkite-agent annotate --style error --context "${job_name}" "${BUILDKITE_LABEL} Test Failures"
+      | buildkite-agent annotate --style "$style"
 
     # Mark header created so subsequent jobs know
     if ! buildkite-agent meta-data exists "bazel-annotate-header-created" >/dev/null; then

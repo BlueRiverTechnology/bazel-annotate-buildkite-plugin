@@ -201,16 +201,12 @@ process_bep() {
         shown=$(( total > 10 ? 10 : total ))
         summary+="<details><summary><strong>⏱️ Test Durations</strong> (top ${shown} of ${total})</summary>"
 
-
         for ((i=0; i<shown; i++)); do
-          summary+="- \`${slowest_tests[i]}\`: ${slowest_times[i]}s
-
-"
+          summary+="- \`${slowest_tests[i]}\`: ${slowest_times[i]}s "
         done
 
         if (( total > shown )); then
-          summary+="- _...and $((total - shown)) more_
-"
+          summary+="- _...and $((total - shown)) more_ "
         fi
 
         summary+="</details>"
@@ -230,8 +226,6 @@ process_bep() {
 
 "
       fi
-
-      echo summary
       # failures
       if [[ -n "$failure_details" ]]; then
         summary+="<details open><summary><strong>❌ Failure Details</strong> ($fail_count)</summary>

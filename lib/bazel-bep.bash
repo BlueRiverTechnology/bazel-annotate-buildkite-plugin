@@ -199,17 +199,21 @@ process_bep() {
       if (( total > 0 )); then
         # only show up to 10
         shown=$(( total > 10 ? 10 : total ))
-        summary+="<details><summary><strong>⏱️ Test Durations</strong> (top ${shown} of ${total})</summary>\n\n"
+        summary+="<details><summary><strong>⏱️ Test Durations</strong> (top ${shown} of ${total})</summary>
+
+        "
 
         for ((i=0; i<shown; i++)); do
-          summary+="- \`${slowest_tests[i]}\`: ${slowest_times[i]}s\n"
+          summary+="- \`${slowest_tests[i]}\`: ${slowest_times[i]}s
+          "
         done
 
         if (( total > shown )); then
-          summary+="- _...and $((total - shown)) more_\n"
+          summary+="- _...and $((total - shown)) more_
+          "
         fi
 
-        summary+="</details>\n\n"
+        summary+="</details>"
       fi
 
       # successful targets

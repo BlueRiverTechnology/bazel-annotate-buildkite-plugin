@@ -241,5 +241,3 @@ $failure_details</details>"
       create_annotation "error" "$summary"
     }
 }
-
-process_bep $1

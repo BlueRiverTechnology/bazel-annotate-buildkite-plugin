@@ -155,7 +155,8 @@ process_bep() {
             seen_tests["$label"]=1
 
             # record slowest
-            local dur_s=$(bc <<<"scale=2; $dur_ms/1000")
+            local dur_s
+            dur_s=$(printf "%.2f" "$(bc <<< "scale=4; $dur_ms/1000")")
             slowest_tests+=("$label")
             slowest_times+=("$dur_s")
 
@@ -194,19 +195,21 @@ process_bep() {
       summary+="
 "
 
-      # slowest tests
-      if (( ${#slowest_tests[@]} )); then
-        summary+="<details><summary><strong>⏱️ Test Durations</strong> (${#slowest_tests[@]})</summary>
+      total=${#slowest_tests[@]}
+      if (( total > 0 )); then
+        # only show up to 10
+        shown=$(( total > 10 ? 10 : total ))
+        summary+="<details><summary><strong>⏱️ Test Durations</strong> (top ${shown} of ${total})</summary>\n\n"
 
-"
-        for i in "${!slowest_tests[@]}"; do
-          summary+="- \`${slowest_tests[i]}\`: ${slowest_times[i]}s
-"
-          (( i == 9 )) && { summary+="- _...and $(( ${#slowest_tests[@]}-10)) more_"; break; }
+        for ((i=0; i<shown; i++)); do
+          summary+="- \`${slowest_tests[i]}\`: ${slowest_times[i]}s\n"
         done
-        summary+="</details>
 
-"
+        if (( total > shown )); then
+          summary+="- _...and $((total - shown)) more_\n"
+        fi
+
+        summary+="</details>\n\n"
       fi
 
       # successful targets

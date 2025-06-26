@@ -199,9 +199,7 @@ process_bep() {
       if (( total > 0 )); then
         # only show up to 10
         shown=$(( total > 10 ? 10 : total ))
-        summary+="<details><summary><strong>⏱️ Test Durations</strong> (top ${shown} of ${total})</summary>
-
-"
+        summary+="<details><summary><strong>⏱️ Test Durations</strong> (top ${shown} of ${total})</summary>"
 
 
         for ((i=0; i<shown; i++)); do
@@ -233,6 +231,7 @@ process_bep() {
 "
       fi
 
+      echo summary
       # failures
       if [[ -n "$failure_details" ]]; then
         summary+="<details open><summary><strong>❌ Failure Details</strong> ($fail_count)</summary>
@@ -248,3 +247,5 @@ $failure_details</details>"
       create_annotation "error" "$summary"
     }
 }
+
+process_bep $1
